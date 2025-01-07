@@ -4,9 +4,14 @@ from typing import List, Dict, Any
 from Utils.Logger import Logger
 
 class CSVReader:
-    def __init__(self):
-        # Dynamically retrieve the script name without hardcoding
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize the CSVReader with a configuration object.
+
+        :param config: Dictionary containing configuration options.
+        """
         self.logger = Logger(os.path.splitext(os.path.basename(__file__))[0])
+        self.config = config  # Store the configuration object
 
     def read(self, file_path: str) -> List[Dict[str, Any]]:
         """
@@ -25,13 +30,19 @@ class CSVReader:
                         site = {
                             "id": row["URL # Number"],
                             "url": row["URL"],
-                            "whiteListedWords": [],
-                            "whiteListedTags": [],
-                            "blackListedTags": [],
-                            "whiteListedURLs": [],
-                            "blackListedURLs": [],
-                            "trimURLs": [],
-                            "proxies": []
+                            "words_white_listed": [],
+                            "tags_white_listed": [],
+                            "tags_black_listed": [],
+                            "urls_white_listed": [],
+                            "urls_black_listed": [],
+                            "urls_trim": [],
+                            "proxies": [],
+                            "depth_max": self.config.get("depth_max"), 
+                            "load_timeout": self.config.get("load_timeout"),
+                            "include_external_sites": self.config.get("include_external_sites"),
+                            "enable_whitelist_url": self.config.get("enable_whitelist_url"),
+                            "enable_trim_url": self.config.get("enable_trim_url"),
+                            "enable_blacklist_url": self.config.get("enable_blacklist_url"),
                         }
                         data.append(site)
 
@@ -43,17 +54,17 @@ class CSVReader:
                     site_id = row["URL # Number 2"].strip()
                     for site in data:
                         if row["White Listed Words"].strip() and row["White Listed Words"] != "White Listed Words" and site["id"] == site_id:
-                            site["whiteListedWords"].append(row["White Listed Words"].strip())
+                            site["words_white_listed"].append(row["White Listed Words"].strip())
                         if row["White Listed Tags"].strip() and row["White Listed Tags"] != "White Listed Tags":
-                            site["whiteListedTags"].append(row["White Listed Tags"].strip())
+                            site["tags_white_listed"].append(row["White Listed Tags"].strip())
                         if row["Black Listed Tags"].strip() and row["Black Listed Tags"] != "Black Listed Tags":
-                            site["blackListedTags"].append(row["Black Listed Tags"].strip())
+                            site["tags_black_listed"].append(row["Black Listed Tags"].strip())
                         if row["White Listed URLs"].strip() and row["White Listed URLs"] != "White Listed URLs":
-                            site["whiteListedURLs"].append(row["White Listed URLs"].strip())
+                            site["urls_white_listed"].append(row["White Listed URLs"].strip())
                         if row["Black Listed URLs"].strip() and row["Black Listed URLs"] != "Black Listed URLs":
-                            site["blackListedURLs"].append(row["Black Listed URLs"].strip())
+                            site["urls_black_listed"].append(row["Black Listed URLs"].strip())
                         if row["Trim URLs"].strip() and row["Trim URLs"] != "Trim URLs":
-                            site["trimURLs"].append(row["Trim URLs"].strip())
+                            site["urls_trim"].append(row["Trim URLs"].strip())
                         if row["Proxies"].strip() and row["Proxies"] != "Proxies":
                             site["proxies"].append(row["Proxies"].strip())
 

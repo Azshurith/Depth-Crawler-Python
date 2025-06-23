@@ -1,67 +1,90 @@
-# import requests
-# from bs4 import BeautifulSoup
-# from Utils.Logger import Logger
+import os
+import requests
+from pyppeteer import launch
+from Utils.Logger import Logger
 
+class CrawlController:
+    def __init__(self, url, depth, config):
+        """
+        Initializes the CrawlController with the necessary configurations.
 
-# class CrawlController:
-#     def __init__(self, url, depth, config, logger=None):
-#         self.url = url
-#         self.depth = depth
-#         self.config = config
-#         self.logger = logger or Logger("CrawlController")
+        :param url: The URL to crawl.
+        :param depth: The depth at which the URL is being crawled.
+        :param config: Configuration object for the crawl (e.g., max_depth, timeout).
+        :param logger: Logger instance for logging messages.
+        """
+        self.url = url
+        self.depth = depth
+        self.config = config
+        self.logger = Logger(os.path.splitext(os.path.basename(__file__))[0])
 
-#     def crawl(self, manager):
-#         """
-#         Perform crawling for the current URL and queue discovered links.
-#         """
-#         try:
-#             self.logger.info(f"Starting crawl for {self.url} at depth {self.depth}")
-#             response = requests.get(self.url, timeout=self.config["timeout"])
-#             response.raise_for_status()
+    async def crawl(self, manager):
+        """
+        Perform crawling for the given URL using puppeteer.
 
-#             # Process the page content
-#             soup = BeautifulSoup(response.content, "html.parser")
-#             self.logger.info(f"Successfully fetched {self.url}")
+        :param manager: The CrawlManager instance managing this controller.
+        """
+        self.logger.info(f"Starting crawl for URL: {self.url} at depth {self.depth}")
 
-#             # Extract content or perform any data capture here
-#             self.extract_content(soup)
+        try:
+            # Launch the browser
+            browser = await launch(headless=True, args=["--no-sandbox"])
+            page = await browser.newPage()
 
-#             # Queue links for further crawling if depth limit isn't reached
-#             if self.depth < self.config["max_depth"]:
-#                 links = self.extract_links(soup)
-#                 for link in links:
-#                     manager.add_to_queue(link, self.depth + 1)
+            # Set the timeout for page loading
+            await page.setDefaultNavigationTimeout(self.config.get("timeout", 30) * 1000)
 
-#         except requests.RequestException as e:
-#             self.logger.error(f"Error crawling {self.url}: {e}")
+            # Navigate to the URL
+            await page.goto(self.url)
+            self.logger.info(f"Successfully navigated to {self.url}")
 
-#     def extract_content(self, soup):
-#         """
-#         Extract and process content from the page.
-#         """
-#         self.logger.info(f"Extracting content from {self.url}")
-#         # Example: Extract all paragraph text
-#         paragraphs = soup.find_all("p")
-#         for p in paragraphs:
-#             text = p.get_text(strip=True)
-#             self.logger.info(f"Extracted: {text}")
+            # Extract content or links
+            content = await self.extract_content(page)
+            self.logger.info(f"Extracted content from {self.url}")
 
-#     def extract_links(self, soup):
-#         """
-#         Extract all valid links from the page.
-#         """
-#         self.logger.info(f"Extracting links from {self.url}")
-#         links = set()
-#         for a_tag in soup.find_all("a", href=True):
-#             href = a_tag["href"]
-#             if self.is_valid_url(href):
-#                 links.add(href)
-#         self.logger.info(f"Found {len(links)} links on {self.url}")
-#         return links
+            # Optionally, add links to the manager's queue for further crawling
+            if self.depth < self.config.get("max_depth", 3):
+                links = await self.extract_links(page)
+                for link in links:
+                    manager.add_to_queue(link, self.depth + 1)
 
-#     def is_valid_url(self, url):
-#         """
-#         Validate the URL format and whether it's allowed for crawling.
-#         """
-#         # Example: Validate against a whitelist or blacklist
-#         return url.startswith("http")
+            # Close the page and browser
+            await page.close()
+            await browser.close()
+
+        except Exception as e:
+            self.logger.error(f"Error while crawling {self.url}: {e}")
+
+    async def extract_content(self, page):
+        """
+        Extracts content from the page. Modify this logic to suit your use case.
+
+        :param page: The pyppeteer Page instance to extract content from.
+        :return: The extracted content (e.g., text, tags).
+        """
+        return await page.evaluate("""
+            () => {
+                const results = [];
+                const elements = document.querySelectorAll('*');
+                elements.forEach(element => {
+                    const text = element.textContent.trim();
+                    if (text) {
+                        results.push({ tag: element.tagName.toLowerCase(), text });
+                    }
+                });
+                return results;
+            }
+        """)
+
+    async def extract_links(self, page):
+        """
+        Extracts links from the page. Modify this logic to suit your use case.
+
+        :param page: The pyppeteer Page instance to extract links from.
+        :return: A list of extracted links.
+        """
+        return await page.evaluate("""
+            () => Array.from(document.querySelectorAll('a[href]'))
+                .map(a => a.href)
+                .filter(href => href.startsWith('http'))
+        """)

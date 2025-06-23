@@ -1,5 +1,5 @@
 build:
-	python Main.py
+	python ./src/Main.py
 
 install:
-	pip3 install -r requirements.txt
+	pip install -r requirements.txt

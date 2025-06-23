@@ -1,77 +1,72 @@
 import os
+import asyncio
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from Managers.CrawlManager import CrawlManager
 from Utils.CSVReader import CSVReader
 from Utils.Logger import Logger
-
 
 class MainClass:
     def __init__(self, root):
         self.root = root
-        self.root.title("CSV Importer with Configuration")
-        self.root.geometry("400x400")
+        self.root.title("Web Crawler Configuration")
+        self.root.geometry("500x600")
+        self.root.resizable(False, False)
 
         # Instantiate the Logger
         self.logger = Logger(os.path.splitext(os.path.basename(__file__))[0])
 
-        # Instantiate the CsvReader (later initialized with config)
+        # Store configurations and data
         self.csv_reader = None
-
-        # Store config object
+        self.crawl_manager = None
         self.config = {}
+        self.data = None
 
-        self.data = None  # Store the imported data
+        # Configure Styles
+        header_font = ("Arial", 16, "bold")
+        label_font = ("Arial", 12)
+        entry_font = ("Arial", 12)
 
-        # Create UI elements
-        self.label = tk.Label(root, text="Welcome to CSV Importer", font=("Arial", 16))
-        self.label.pack(pady=10)
+        # Header Section
+        header_frame = tk.Frame(root)
+        header_frame.pack(pady=10)
+        tk.Label(header_frame, text="Web Crawler Configuration", font=header_font).pack()
 
-        # Max Depth Input
-        self.depth_max_label = tk.Label(root, text="Max Depth:", font=("Arial", 12))
-        self.depth_max_label.pack(pady=5)
-        self.depth_max_entry = tk.Entry(root, font=("Arial", 12))
-        self.depth_max_entry.pack(pady=5)
+        # Configuration Section
+        config_frame = tk.LabelFrame(root, text="Crawl Configuration", font=label_font, padx=10, pady=10)
+        config_frame.pack(fill="both", expand="yes", padx=20, pady=10)
 
-        # Timeout Input
-        self.load_timeout_label = tk.Label(root, text="Loading Timeout (seconds):", font=("Arial", 12))
-        self.load_timeout_label.pack(pady=5)
-        self.load_timeout_entry = tk.Entry(root, font=("Arial", 12))
-        self.load_timeout_entry.pack(pady=5)
+        # Max Depth
+        tk.Label(config_frame, text="Max Depth:", font=label_font).grid(row=0, column=0, sticky="w", pady=5)
+        self.depth_max_entry = tk.Entry(config_frame, font=entry_font, width=25)
+        self.depth_max_entry.grid(row=0, column=1, padx=10, pady=5)
 
-        # Checkboxes
+        # Timeout
+        tk.Label(config_frame, text="Timeout (seconds):", font=label_font).grid(row=1, column=0, sticky="w", pady=5)
+        self.load_timeout_entry = tk.Entry(config_frame, font=entry_font, width=25)
+        self.load_timeout_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        # Options Section
+        options_frame = tk.LabelFrame(root, text="Crawl Options", font=label_font, padx=10, pady=10)
+        options_frame.pack(fill="both", expand="yes", padx=20, pady=10)
+
         self.include_external_sites_var = tk.BooleanVar()
         self.enable_whitelist_url_var = tk.BooleanVar()
         self.enable_trim_url_var = tk.BooleanVar()
         self.enable_blacklist_url_var = tk.BooleanVar()
 
-        self.include_external_sites_checkbox = tk.Checkbutton(
-            root, text="Include External Sites", variable=self.include_external_sites_var, font=("Arial", 12)
-        )
-        self.include_external_sites_checkbox.pack(pady=5)
+        tk.Checkbutton(options_frame, text="Include External Sites", variable=self.include_external_sites_var, font=label_font).pack(anchor="w", pady=5)
+        tk.Checkbutton(options_frame, text="Enable Whitelist URL", variable=self.enable_whitelist_url_var, font=label_font).pack(anchor="w", pady=5)
+        tk.Checkbutton(options_frame, text="Enable Trim URL", variable=self.enable_trim_url_var, font=label_font).pack(anchor="w", pady=5)
+        tk.Checkbutton(options_frame, text="Enable Blacklist URL", variable=self.enable_blacklist_url_var, font=label_font).pack(anchor="w", pady=5)
 
-        self.enable_whitelist_url_checkbox = tk.Checkbutton(
-            root, text="Enable Whitelist URL", variable=self.enable_whitelist_url_var, font=("Arial", 12)
-        )
-        self.enable_whitelist_url_checkbox.pack(pady=5)
+        # Buttons Section
+        button_frame = tk.Frame(root)
+        button_frame.pack(pady=20)
 
-        self.enable_trim_url_checkbox = tk.Checkbutton(
-            root, text="Enable Trim URL", variable=self.enable_trim_url_var, font=("Arial", 12)
-        )
-        self.enable_trim_url_checkbox.pack(pady=5)
-
-        self.enable_blacklist_url_checkbox = tk.Checkbutton(
-            root, text="Enable Blacklist URL", variable=self.enable_blacklist_url_var, font=("Arial", 12)
-        )
-        self.enable_blacklist_url_checkbox.pack(pady=5)
-
-        self.import_button = tk.Button(root, text="Import CSV", command=self.import_csv, font=("Arial", 12))
-        self.import_button.pack(pady=10)
-
-        self.start_button = tk.Button(root, text="Start", command=self.start_process, font=("Arial", 12))
-        self.start_button.pack(pady=10)
-
-        self.quit_button = tk.Button(root, text="Quit", command=root.quit, font=("Arial", 12))
-        self.quit_button.pack(pady=10)
+        tk.Button(button_frame, text="Import CSV", command=self.import_csv, font=label_font, width=15, bg="lightblue").grid(row=0, column=0, padx=10)
+        tk.Button(button_frame, text="Start", command=self.start_process, font=label_font, width=15, bg="lightgreen").grid(row=0, column=1, padx=10)
+        tk.Button(button_frame, text="Quit", command=root.quit, font=label_font, width=15, bg="lightcoral").grid(row=0, column=2, padx=10)
 
     def create_config(self):
         """
@@ -98,7 +93,7 @@ class MainClass:
         # Create config from inputs
         self.config = self.create_config()
         if not self.config:
-            return  # Exit if config creation fails
+            return
 
         # Initialize CSVReader with the config object
         self.csv_reader = CSVReader(config=self.config)
@@ -140,8 +135,11 @@ class MainClass:
 
         # Log and proceed with the process
         self.logger.info("Start button clicked. Starting process.")
+        self.crawl_manager = CrawlManager(self.config)
+
+        # Run the asynchronous start_crawling method
+        asyncio.run(self.crawl_manager.start_crawling(self.data))
         messagebox.showinfo("Start Process", "The process has started!")
-        print("Start button clicked. Process started successfully.")
 
 def main():
     # Initialize the main window

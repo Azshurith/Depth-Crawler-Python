@@ -1,37 +1,46 @@
 import os
-import queue
-# from Controllers.CrawlController import CrawlController
+import asyncio
+from Controllers.CrawlController import CrawlController
 from Utils.Logger import Logger
 
 class CrawlManager:
     def __init__(self, config):
-        self.config = config  # Configuration object for crawling
+        """
+        Initializes the CrawlManager with the provided configuration.
+
+        :param config: Configuration object containing crawl settings.
+        """
+        self.config = config
         self.logger = Logger(os.path.splitext(os.path.basename(__file__))[0])
-        self.visited_urls = set()  # Tracks visited URLs globally
-        self.url_queue = queue.Queue()  # Queue to manage URLs and their depths
-        self.controllers = []  # List of active CrawlController instances
+        self.controllers = []
 
-    def add_to_queue(self, url, depth):
+    def create_controllers(self, rows):
         """
-        Add a URL and its depth to the queue if it hasn't been visited yet.
-        """
-        if url not in self.visited_urls and depth <= self.config["max_depth"]:
-            self.visited_urls.add(url)
-            self.url_queue.put((url, depth))
-            self.logger.info(f"Queued URL: {url} at depth {depth}")
+        Create a CrawlController for each row and store it in the controllers list.
 
-    def start_crawling(self, start_url):
+        :param rows: List of dictionaries representing rows (e.g., from a CSV file).
         """
-        Initiates the crawling process with a given start URL.
-        """
-        self.add_to_queue(start_url, 0)  # Start from depth 0
-        self.logger.info(f"Starting crawl from: {start_url}")
+        for row in rows:
+            url = row.get("url")
+            if not url:
+                self.logger.warning("Row is missing 'url'. Skipping...")
+                continue
 
-        while not self.url_queue.empty():
-            url, depth = self.url_queue.get()
-            self.logger.info(f"Processing URL: {url} at depth {depth}")
-            # controller = CrawlController(url, depth, self.config, self.logger)
-            # self.controllers.append(controller)
-            # controller.crawl(self)
+            # Initialize a CrawlController for the URL
+            controller = CrawlController(url, depth=0, config=self.config)
+            self.controllers.append(controller)
+            self.logger.info(f"Created CrawlController for URL: {url}")
+
+    async def start_crawling(self, rows):
+        """
+        Initiates the crawling process for the imported rows.
+
+        :param rows: List of dictionaries representing rows (e.g., from a CSV file).
+        """
+        self.logger.info("Starting crawl process.")
+        self.create_controllers(rows)
+
+        # Run all crawlers asynchronously
+        await asyncio.gather(*(controller.crawl(self) for controller in self.controllers))
 
         self.logger.info("Crawling process completed.")
